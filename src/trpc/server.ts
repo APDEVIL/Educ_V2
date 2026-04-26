@@ -13,11 +13,13 @@ import { createQueryClient } from "./query-client";
  * handling a tRPC call from a React Server Component.
  */
 const createContext = cache(async () => {
-	const heads = new Headers(await headers());
-	heads.set("x-trpc-source", "rsc");
+	// ✅ FIX: DO NOT wrap headers() in new Headers()
+	// ❌ This was breaking cookies
+	// const heads = new Headers(await headers());
+	// heads.set("x-trpc-source", "rsc");
 
 	return createTRPCContext({
-		headers: heads,
+		headers: await headers(), // ✅ correct way
 	});
 });
 

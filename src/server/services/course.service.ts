@@ -1,6 +1,6 @@
-import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, eq, ilike, or } from "drizzle-orm";
 
-import { type db as DB } from "@/server/db";
+import { db } from "@/server/db";
 import {
   categories,
   contents,
@@ -11,7 +11,7 @@ import {
   tags,
 } from "@/server/db/schema";
 
-type DB = typeof DB;
+type DB = typeof db;
 
 // ─── Categories & Tags ────────────────────────────────────────────────────────
 
@@ -86,7 +86,11 @@ export async function listCourses(
 
   return db.query.courses.findMany({
     where: conditions.length ? and(...conditions) : undefined,
-    with: { teacher: true, category: true, courseTags: { with: { tagId: true } } },
+    with: {
+      teacher: true,
+      category: true,
+      courseTags: { with: { tag: true } },
+    },
     limit,
     offset,
     orderBy: (c, { desc }) => [desc(c.createdAt)],
@@ -127,9 +131,23 @@ export async function updateCourse(
 ) {
   const { tagIds, ...rest } = data;
 
+  // ✅ When teacher toggles isPublished ON, bump status draft → pending
+  // so admin sees it in the review queue. Only bumps from draft, never
+  // overrides approved/rejected.
+  let statusBump: { status: "pending" } | undefined;
+  if (rest.isPublished === true) {
+    const current = await db.query.courses.findFirst({
+      where: eq(courses.id, courseId),
+      columns: { status: true },
+    });
+    if (current?.status === "draft") {
+      statusBump = { status: "pending" };
+    }
+  }
+
   const [updated] = await db
     .update(courses)
-    .set({ ...rest, updatedAt: new Date() })
+    .set({ ...rest, ...statusBump, updatedAt: new Date() })
     .where(eq(courses.id, courseId))
     .returning();
 
@@ -146,7 +164,6 @@ export async function updateCourse(
 }
 
 export async function deleteCourse(db: DB, courseId: string) {
-  // cascade deletes modules, lessons, contents, enrollments, assessments
   await db.delete(courses).where(eq(courses.id, courseId));
 }
 
@@ -283,7 +300,7 @@ export async function listPendingContent(db: DB) {
       eq(contents.status, "pending"),
       eq(contents.status, "flagged"),
     ),
-    with: { lessonId: true },
+    with: { lesson: true },
     orderBy: (c, { asc }) => [asc(c.createdAt)],
   });
 }

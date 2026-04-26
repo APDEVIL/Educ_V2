@@ -298,6 +298,15 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   notifications: many(notifications),
   sentMessages: many(messages, { relationName: "sender" }),
   receivedMessages: many(messages, { relationName: "receiver" }),
+  
+  // ─── Added Missing Reverse Mappings ───
+  uploadedContents: many(contents, { relationName: "uploader" }),
+  reviewedContents: many(contents, { relationName: "reviewer" }),
+  createdReports: many(reports, { relationName: "reporter" }),
+  resolvedReports: many(reports, { relationName: "resolver" }),
+  discussions: many(discussions),
+  discussionReplies: many(discussionReplies),
+  createdAssessments: many(assessments),
 }));
 
 export const profilesRelations = relations(profiles, ({ one }) => ({
@@ -355,4 +364,41 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(users, { fields: [notifications.userId], references: [users.id] }),
   course: one(courses, { fields: [notifications.courseId], references: [courses.id] }),
+}));
+
+export const contentsRelations = relations(contents, ({ one }) => ({
+  lesson: one(lessons, { fields: [contents.lessonId], references: [lessons.id] }),
+  uploader: one(users, { fields: [contents.uploadedBy], references: [users.id], relationName: "uploader" }),
+  reviewer: one(users, { fields: [contents.reviewedBy], references: [users.id], relationName: "reviewer" }),
+}));
+
+export const reportsRelations = relations(reports, ({ one }) => ({
+  reporter: one(users, { fields: [reports.reportedBy], references: [users.id], relationName: "reporter" }),
+  content: one(contents, { fields: [reports.contentId], references: [contents.id] }),
+  discussion: one(discussions, { fields: [reports.discussionId], references: [discussions.id] }),
+  message: one(messages, { fields: [reports.messageId], references: [messages.id] }),
+  resolver: one(users, { fields: [reports.resolvedBy], references: [users.id], relationName: "resolver" }),
+}));
+
+export const discussionRepliesRelations = relations(discussionReplies, ({ one }) => ({
+  discussion: one(discussions, { fields: [discussionReplies.discussionId], references: [discussions.id] }),
+  author: one(users, { fields: [discussionReplies.authorId], references: [users.id] }),
+}));
+
+export const categoriesRelations = relations(categories, ({ many }) => ({
+  courses: many(courses),
+}));
+
+export const tagsRelations = relations(tags, ({ many }) => ({
+  courseTags: many(courseTags),
+}));
+
+export const courseTagsRelations = relations(courseTags, ({ one }) => ({
+  course: one(courses, { fields: [courseTags.courseId], references: [courses.id] }),
+  tag: one(tags, { fields: [courseTags.tagId], references: [tags.id] }),
+}));
+
+export const lessonProgressRelations = relations(lessonProgress, ({ one }) => ({
+  student: one(users, { fields: [lessonProgress.studentId], references: [users.id] }),
+  lesson: one(lessons, { fields: [lessonProgress.lessonId], references: [lessons.id] }),
 }));

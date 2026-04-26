@@ -1,9 +1,9 @@
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 
-import { type db as DB } from "@/server/db";
+import { db } from "@/server/db";
 import { discussionReplies, discussions, messages, reports } from "@/server/db/schema";
 
-type DB = typeof DB;
+type DB = typeof db;
 
 // ─── Discussions ──────────────────────────────────────────────────────────────
 
@@ -22,7 +22,12 @@ export async function createDiscussion(
 export async function listDiscussions(db: DB, courseId: string) {
   return db.query.discussions.findMany({
     where: eq(discussions.courseId, courseId),
-    with: { author: true, replies: { with: { authorId: true } } },
+    with: {
+      author: true,
+      replies: {
+        with: { author: true }, // ✅ Fixed: authorId is a column, author is the relation
+      },
+    },
     orderBy: (d, { desc, asc }) => [desc(d.isPinned), asc(d.createdAt)],
   });
 }
@@ -33,7 +38,7 @@ export async function getDiscussion(db: DB, discussionId: string) {
     with: {
       author: true,
       replies: {
-        with: { authorId: true },
+        with: { author: true }, // ✅ Fixed: was authorId: true
         orderBy: (r, { asc }) => [asc(r.createdAt)],
       },
     },
@@ -64,7 +69,6 @@ export async function addReply(
   authorId: string,
   data: { discussionId: string; body: string; parentId?: string },
 ) {
-  // Check discussion isn't locked
   const discussion = await db.query.discussions.findFirst({
     where: eq(discussions.id, data.discussionId),
   });
@@ -131,7 +135,6 @@ export async function markMessageRead(db: DB, messageId: string) {
 }
 
 export async function listConversationPartners(db: DB, userId: string) {
-  // Unique users this person has talked with
   const sent = await db.query.messages.findMany({
     where: eq(messages.senderId, userId),
     columns: { receiverId: true },
@@ -175,12 +178,18 @@ export async function listReports(
   opts: { resolved?: boolean } = {},
 ) {
   return db.query.reports.findMany({
-    where: opts.resolved === undefined
-      ? undefined
-      : opts.resolved
-        ? and() // has resolvedAt — handled via sql in prod
-        : eq(reports.resolvedBy, null as never), // unresolved
-    with: { contentId: true, discussionId: true },
+    where:
+      opts.resolved === undefined
+        ? undefined
+        : opts.resolved
+          ? isNotNull(reports.resolvedAt)  // ✅ Fixed: was and() with no args
+          : isNull(reports.resolvedAt),    // ✅ Fixed: was eq(reports.resolvedBy, null as never)
+    with: {
+      content: true,    // ✅ Fixed: was contentId: true (column, not relation)
+      discussion: true, // ✅ Fixed: was discussionId: true (column, not relation)
+      reporter: true,
+      resolver: true,
+    },
     orderBy: (r, { desc }) => [desc(r.createdAt)],
   });
 }
